@@ -20,8 +20,8 @@ public class User {
 
     @Column(nullable = false)
     private String password;
-    private String F_name;
-    private String L_name;
+    private String f_name;
+    private String l_name;
 
     @Enumerated(EnumType.STRING)
     private UserRole role = UserRole.USER;
