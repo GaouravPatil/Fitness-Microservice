@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: activityservice
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/fitnessdb
+    username: postgres
+    password: yourpassword
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017
+      database: Ai_activityFitness
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+
+server:
+  port: 8082
