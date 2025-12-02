@@ -14,6 +14,11 @@ spring:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     show-sql: true
 
+  eureka:
+    client:
+      serviceURL:
+        defaultZone: http://localhost:8761/eureka/
+
   docker:
     compose:
       enabled: false
