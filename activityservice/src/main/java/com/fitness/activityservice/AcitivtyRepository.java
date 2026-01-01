@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface AcitivtyRepository extends MongoRepository<Activity,String> {
+
 }
