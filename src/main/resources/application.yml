@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: userservice
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/Fitness-Microservice
+    username: postgres
+    password: redhat@2004
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+
+  eureka:
+    client:
+      serviceURL:
+        defaultZone: http://localhost:8761/eureka/
+
+  docker:
+    compose:
+      enabled: false
+
+server:
+  port: 8081
