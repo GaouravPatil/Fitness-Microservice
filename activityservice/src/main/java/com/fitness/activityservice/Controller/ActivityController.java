@@ -1,6 +1,6 @@
 package com.fitness.activityservice.Controller;
 
-import com.fitness.activityservice.ActivityserviceApplication;
+import com.fitness.activityservice.*;
 import com.fitness.activityservice.dto.ActivityRequest;
 import com.fitness.activityservice.dto.ActivityResponse;
 import com.fitness.activityservice.service.ActivityService;
