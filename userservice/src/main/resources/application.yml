@@ -3,7 +3,7 @@ spring:
     name: userservice
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/Fitness-Microservice
+    url: jdbc:postgresql://localhost:5432/fitnessdb
     username: postgres
     password: redhat@2004
     driver-class-name: org.postgresql.Driver
