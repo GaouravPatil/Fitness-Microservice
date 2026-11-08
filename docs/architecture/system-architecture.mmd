@@ -1,0 +1,64 @@
+flowchart LR
+    CLIENT(["Client<br/>Web / Mobile / curl"])
+
+    subgraph USERSVC["userservice · :8081"]
+        direction TB
+        UC["<b>UserController</b><br/>POST /api/users/register<br/>POST /api/users/login<br/>GET /api/users/{userId}<br/>GET /api/users/{userId}/validate (internal)"]
+        USVC["UserService · BCrypt<br/>AuthService<br/>JwtService · HS256 signer"]
+    end
+
+    PG[("PostgreSQL :5432 · local<br/>fitnessdb<br/>table: users")]
+
+    subgraph ACTSVC["activityservice · :8082"]
+        direction TB
+        AC["<b>ActivityController</b><br/>POST /api/activities<br/>GET /api/activities/user/{userId}"]
+        ASVC["ActivityService<br/>JWT verify · owner-or-admin"]
+        UVS["UserValidationService<br/>WebClient @LoadBalanced<br/>Resilience4j circuit breaker"]
+    end
+
+    MONGOA[("MongoDB :27017 · local<br/>activityfitness<br/>collection: activities")]
+
+    KAFKA[["Kafka :9092 · Podman container<br/>topic: activity-topic<br/>3 partitions · key = userId"]]
+
+    subgraph AISVC["aiservice · :8083"]
+        direction TB
+        KL["<b>ActivityEventListener</b><br/>@KafkaListener group=aiservice"]
+        GEN["RecommendationGenerator<br/>OpenAI client → rules fallback"]
+        RCON["<b>RecommendationController</b><br/>GET /api/recommendations/user/{userId}<br/>GET /api/recommendations/activity/{activityId}"]
+    end
+
+    MONGOR[("MongoDB :27017 · local<br/>activityfitness<br/>collection: recommendations")]
+    OAI(["OpenAI API<br/>POST /v1/chat/completions"])
+
+    JWT{{"JWT_SECRET · env<br/>userservice signs<br/>activity + ai verify"}}
+    APIKEY{{"INTERNAL_API_KEY · env<br/>header X-Internal-Api-Key<br/>constant-time compare"}}
+    EUREKA["Eureka :8761<br/>service registry"]
+
+    CLIENT -->|"HTTPS · JSON"| UC
+    CLIENT -->|"Bearer JWT + activity JSON"| AC
+    CLIENT -->|"Bearer JWT"| RCON
+
+    UC --> USVC
+    USVC -->|"JDBC / JPA · INSERT + SELECT"| PG
+
+    AC --> ASVC
+    ASVC --> UVS
+    UVS -->|"GET /api/users/{id}/validate<br/>header X-Internal-Api-Key"| UC
+    APIKEY -.->|"protects validate endpoint"| UC
+    ASVC -->|"save activity · find by userId"| MONGOA
+    ASVC -->|"send(topic, key=userId, Activity JSON)<br/>acks=all · waits ack up to 5 s"| KAFKA
+
+    KAFKA -->|"consume · group=aiservice<br/>manual ack per record · retry 2 s x3"| KL
+    KL --> GEN
+    GEN -.->|"HTTPS · optional (AI_API_KEY)"| OAI
+    GEN -->|"upsert by activityId"| MONGOR
+    RCON -->|"findByUserId · findByActivityId"| MONGOR
+
+    USVC -.->|"sign tokens"| JWT
+    ASVC -.->|"verify tokens"| JWT
+    RCON -.->|"verify tokens"| JWT
+
+    UC -.->|"register / discover"| EUREKA
+    AC -.->|"register / discover"| EUREKA
+    RCON -.->|"register / discover"| EUREKA
+    UVS -.->|"resolve USERSERVICE"| EUREKA

@@ -1,0 +1,87 @@
+sequenceDiagram
+    autonumber
+    actor U as Client
+    participant US as userservice :8081
+    participant PG as PostgreSQL<br/>users
+    participant EU as Eureka :8761
+    participant AS as activityservice :8082
+    participant MA as MongoDB<br/>activities
+    participant K as Kafka<br/>activity-topic
+    participant AI as aiservice :8083
+    participant MR as MongoDB<br/>recommendations
+    participant OAI as OpenAI API
+
+    rect rgb(232, 242, 255)
+    Note over U,PG: PHASE 1 · SIGN UP — POST /api/users/register
+    U->>US: {email, password, firstName, lastName}
+    US->>PG: existsByEmailIgnoreCase(email)
+    PG-->>US: false
+    Note right of US: normalize email · BCrypt hash password<br/>id = UUID · role = USER
+    US->>PG: INSERT users (saveAndFlush)
+    PG-->>US: saved user
+    US-->>U: 201 UserResponse (password never returned)
+    end
+
+    rect rgb(232, 250, 238)
+    Note over U,US: PHASE 2 · LOGIN — POST /api/users/login
+    U->>US: {email, password}
+    US->>PG: findByEmailIgnoreCase(email)
+    PG-->>US: user + BCrypt hash
+    Note right of US: BCrypt.matches<br/>claims: sub=userId, email, role, iat, exp<br/>HS256 signed with JWT_SECRET
+    US-->>U: 200 {accessToken, tokenType="Bearer", expiresInSeconds}
+    end
+
+    rect rgb(255, 247, 230)
+    Note over U,MA: PHASE 3 · TRACK ACTIVITY — POST /api/activities
+    U->>AS: Authorization: Bearer JWT<br/>{userId, type, duration, caloriesBurned, startTime, metrics}
+    Note right of AS: JWT verified with shared secret<br/>requireSelfOrAdmin: sub == userId OR ROLE_ADMIN
+    AS->>EU: resolve USERSERVICE
+    EU-->>AS: instance URI
+    AS->>US: GET /api/users/{userId}/validate<br/>X-Internal-Api-Key
+    US->>PG: existsById(userId)
+    PG-->>US: true / false
+    alt user not found
+        US-->>AS: 200 false
+        AS-->>U: 400 Invalid user
+    else user exists
+        US-->>AS: 200 true
+        AS->>MA: save(Activity)
+        MA-->>AS: Activity(id, createdAt, updatedAt)
+        AS->>K: send(topic=activity-topic, key=userId, value=ActivityEvent JSON)
+        Note right of K: acks=all · producer waits up to 5 s
+        K-->>AS: ack (offset)
+        AS-->>U: 201 ActivityResponse
+    end
+    Note over AS,K: ack failure → 503 saved-but-not-queued<br/>activity is already in MongoDB · client retry may duplicate
+    end
+
+    rect rgb(250, 236, 252)
+    Note over K,MR: PHASE 4 · ASYNC RECOMMENDATION — Kafka consumer
+    K->>AI: deliver ActivityEvent (group=aiservice)
+    Note right of AI: @KafkaListener · AckMode.RECORD<br/>failed record retried 2 s x3
+    AI->>AI: RecommendationGenerator.generate(event)
+    alt AI_API_KEY configured
+        AI->>OAI: POST /v1/chat/completions
+        OAI-->>AI: JSON recommendation
+    else no key or provider error
+        AI->>AI: rule-based fallback (provider=RULES)
+    end
+    AI->>MR: upsert by activityId (idempotent)
+    MR-->>AI: saved Recommendation
+    end
+
+    rect rgb(240, 240, 240)
+    Note over U,MR: PHASE 5 · READ RESULTS — JWT required on every call
+    U->>AS: GET /api/activities/user/{userId}?page=0&size=20<br/>Bearer JWT
+    AS->>MA: findByUserId(userId, pageable)
+    MA-->>AS: Page of Activity
+    AS-->>U: 200 Page of ActivityResponse
+    U->>AI: GET /api/recommendations/user/{userId}?page=0&size=20<br/>Bearer JWT
+    AI->>MR: findByUserId(userId, pageable)
+    MR-->>AI: Page of Recommendation
+    AI-->>U: 200 Page of RecommendationResponse
+    U->>AI: GET /api/recommendations/activity/{activityId}<br/>Bearer JWT
+    AI->>MR: findFirstByActivityIdOrderByCreatedAtDesc
+    MR-->>AI: Recommendation
+    AI-->>U: 200 RecommendationResponse
+    end
