@@ -1,33 +1,71 @@
 spring:
   application:
     name: activityservice
-  datasource:
-    url: jdbc:postgresql://localhost:5432/fitnessdb
-    username: postgres
-    password: redhat@2004
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
   data:
     mongodb:
-      uri: mongodb://localhost:27017
-      database: Ai_activityFitness
+      uri: ${MONGODB_URI:mongodb://localhost:27017/activityfitness}
+      database: ${MONGODB_DATABASE:activityfitness}
+
   kafka:
-    bootstrap-servers: localhost:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
+      acks: all
+      retries: 3
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
 
 kafka:
   topic:
-    name: activity-topic
+    name: ${KAFKA_TOPIC:activity-topic}
+    partitions: ${KAFKA_TOPIC_PARTITIONS:3}
+    replicas: ${KAFKA_TOPIC_REPLICAS:1}
+  publish-timeout: ${KAFKA_PUBLISH_TIMEOUT:PT5S}
 
 eureka:
   client:
-    serviceUrl:
-      defaultZone: http://localhost:8761/eureka/
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+  internal:
+    api-key: ${INTERNAL_API_KEY}
+  user-service:
+    base-url: ${USER_SERVICE_URL:http://USERSERVICE}
+    timeout: ${USER_SERVICE_TIMEOUT:PT3S}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      userService:
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
 
 server:
-  port: 8082
+  port: ${ACTIVITY_SERVICE_PORT:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
