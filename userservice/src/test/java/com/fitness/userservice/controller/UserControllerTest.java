@@ -4,10 +4,11 @@ import com.fitness.userservice.dto.LoginResponse;
 import com.fitness.userservice.dto.UserResponse;
 import com.fitness.userservice.exception.EmailAlreadyExistsException;
 import com.fitness.userservice.model.UserRole;
-import com.fitness.userservice.security.JwtConfig;
+import com.fitness.userservice.security.RateLimitService;
 import com.fitness.userservice.security.SecurityConfig;
 import com.fitness.userservice.service.AuthService;
 import com.fitness.userservice.service.UserService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -15,6 +16,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -28,8 +30,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(UserController.class)
-@Import({SecurityConfig.class, JwtConfig.class})
-@TestPropertySource(properties = "app.internal.api-key=test-internal-key")
+@Import(SecurityConfig.class)
+@TestPropertySource(properties = "app.internal.api-keys=test-internal-key")
 class UserControllerTest {
 
     @Autowired
@@ -40,6 +42,17 @@ class UserControllerTest {
 
     @MockitoBean
     private AuthService authService;
+
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
+
+    @MockitoBean
+    private RateLimitService rateLimitService;
+
+    @BeforeEach
+    void allowRequestsByDefault() {
+        when(rateLimitService.tryAcquire(any(), any(Integer.class), any())).thenReturn(true);
+    }
 
     @Test
     void registerReturnsCreatedUserWithoutPassword() throws Exception {

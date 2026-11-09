@@ -7,6 +7,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+  flyway:
+    enabled: false
   cloud:
     discovery:
       enabled: false
@@ -14,3 +16,15 @@ spring:
 eureka:
   client:
     enabled: false
+
+app:
+  jwt:
+    issuer: https://userservice.fitness.local
+    audience: fitness-api
+    key-id: test-key
+    private-key: MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCck7pYsB3BJn2GwRN/uYG9zd+GpaZwhutkLlpw0AqajRRzkXCRcbAZR+5DsXpd8lioFyRBrUG+xDr/vonH76z4WVXixOCXGLHwnI5WTkeZZHoIKkJTjPr9MqpbxG0xz6YzCCuOIsMDRgz1HdEDipYvodI9MWwE8nhAtKNu5s0/PMKCchpI3soyutv53DnehqGOO6DOBvL0NeWxzS+u/Ongc7MUpYS9RUTASD48n+7Gn/WsUY37djxd9CU0Ys4lYFqpnSR7nwPy7Hf2vYKvQJm33e4hJzr7UTLqNXi68ioE/w/Nk37QAjgCkS4/9/bvEDFNMFVcX1R0Qmvpt9AmiW0zAgMBAAECggEAAzAAtah+2pKZheztTtwsbNGW8NXzdvalg8hrypXO+XQmIUTUiVQf/8vBPns2S1j71A7bNpkRLbyEmks7Nn5Fw60x5z1seGGmJwimNHyVzuTG6olNs1y7M/yxj3pcDLe2TEioy6p1KjO6tMy9bLiICS00AKSTweAGca7GZaNo30DUaZegc42a31xFyuoZaF1rlTww4gHPc6Siye7hpRLLZIrwViDDx6IPljZXdZlZH3+i2AY2FljS3qpoXuZq4GgCROPJIiyYnLGEnXr+esysEIvffcOAQdvuDsAuuSxmDkG4P7tz2cW6r72oPuz6pgXGwRw8cicf/jZU/aT4GB047QKBgQDO6gqKsuBKYCsxxbIVzNSXI5ITpD3YfWVjJ1Qj0GGBxrt/LvG5PXP7lMGmLf1ZXQn3mKF8HDsrRyo3ztf8ddbSdlE48wYTdNi3dxXyWu1gk0wLqPfi4lyZ2ga8P+lVAtMdXg0U3ISEz21G0WGta5iLFeSRg1RO2+fBr0hiH+7SvwKBgQDBuLJiv1VfDLR5+VeWLkExd2bZt6TQYBeExCoCQJLPfbiscvh5RCxi/UvgsfZDw9DVftebkRayJHR4Qj63sBImIxqqlwIhdlhSZEpp5aUmbLJefmP6rcEodXssaAPUyWsTEIF5GTZL6PoDRUopFeLjm329L3B/mR+PFO4vTAkmjQKBgH5HbemaI7KgoJv+uKH/YVtgVR1xpmECnqb18K7u1SN74yBKyTGxZKCM9+ZwuOcaFiQq3Zs+K4pNI2Ht9flY/aNynD1ybCnhrQXDQvynK6o+GzIejDLGzZcD7gpjwwaj864/oSIzNxlK8rk+vis1uGJiGR4JlaGPKhEV5colDP9HAoGAF6i7AJxljMo8cHknXUwg4i22/fgTxO83cBuVFdlVFMpB963C8uyEj0JoNfUGIpiTtL9dDb7WisMxBk7w4fY7ATVgWF1BAV02xDlDbVOCrAKydh/xjfgSkyJl/LJnZWGEFjv51BRkMTku759Sw1nM8AdZf/V/Q9YrqInh3RzoMTECgYBvVDLwA4o6pKON6w/JRQMyvjhJ/y+jQ8XIpX29m7pyFhP3C5iRX7Fq1CfKHF/paBV19jV2wcpInn/4mpSoD+m62rBQeSOcjMsm+Ld+rfbUcU/QGjpmEKvNnFJlHUjunIZMJuAPDJpPmI5HHRVZNpT+kjjVDci89svYgnefcxHygQ==
+    public-key: MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnJO6WLAdwSZ9hsETf7mBvc3fhqWmcIbrZC5acNAKmo0Uc5FwkXGwGUfuQ7F6XfJYqBckQa1BvsQ6/76Jx++s+FlV4sTglxix8JyOVk5HmWR6CCpCU4z6/TKqW8RtMc+mMwgrjiLDA0YM9R3RA4qWL6HSPTFsBPJ4QLSjbubNPzzCgnIaSN7KMrrb+dw53oahjjugzgby9DXlsc0vrvzp4HOzFKWEvUVEwEg+PJ/uxp/1rFGN+3Y8XfQlNGLOJWBaqZ0ke58D8ux39r2Cr0CZt93uISc6+1Ey6jV4uvIqBP8PzZN+0AI4ApEuP/f27xAxTTBVXF9UdEJr6bfQJoltMwIDAQAB
+    ttl: PT15M
+    refresh-ttl: P7D
+  internal:
+    api-keys: test-internal-key
