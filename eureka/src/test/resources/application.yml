@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: eureka
+  security:
+    user:
+      name: test-eureka
+      password: test-eureka-password
+
+server:
+  port: 0
+  address: 127.0.0.1
+
+eureka:
+  client:
+    register-with-eureka: false
+    fetch-registry: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health

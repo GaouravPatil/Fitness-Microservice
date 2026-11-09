@@ -1,9 +1,14 @@
 spring:
   application:
     name: eureka
+  security:
+    user:
+      name: ${EUREKA_USERNAME}
+      password: ${EUREKA_PASSWORD}
 
 server:
   port: ${EUREKA_SERVER_PORT:8761}
+  address: ${EUREKA_BIND_ADDRESS:127.0.0.1}
 
 eureka:
   client:
@@ -14,4 +19,4 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health
