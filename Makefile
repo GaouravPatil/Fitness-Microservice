@@ -103,7 +103,7 @@ else ifeq ($(PODMAN_OK),yes)
 		else \
 			podman $(PODMAN_AUTH_ARG) run -d --name fitness-postgres \
 				-e POSTGRES_DB=fitnessdb -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
-				-p 5432:5432 docker.io/postgres:16-alpine >/dev/null; \
+				-p 127.0.0.1:5432:5432 docker.io/postgres:16-alpine >/dev/null; \
 		fi; \
 	fi; \
 	if ! (echo >/dev/tcp/127.0.0.1/27017) 2>/dev/null; then \
@@ -111,14 +111,14 @@ else ifeq ($(PODMAN_OK),yes)
 			podman start fitness-mongodb >/dev/null; \
 		else \
 			podman $(PODMAN_AUTH_ARG) run -d --name fitness-mongodb \
-				-p 27017:27017 docker.io/mongo:7 >/dev/null; \
+				-p 127.0.0.1:27017:27017 docker.io/mongo:7 >/dev/null; \
 		fi; \
 	fi; \
 	if ! (echo >/dev/tcp/127.0.0.1/9092) 2>/dev/null; then \
 		if podman container exists fitness-kafka; then \
 			podman start fitness-kafka >/dev/null; \
 		else \
-			podman $(PODMAN_AUTH_ARG) run -d --name fitness-kafka -p 9092:9092 \
+			podman $(PODMAN_AUTH_ARG) run -d --name fitness-kafka -p 127.0.0.1:9092:9092 \
 				-e KAFKA_NODE_ID=1 \
 				-e KAFKA_PROCESS_ROLES=broker,controller \
 				-e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093 \
