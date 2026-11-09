@@ -6,6 +6,7 @@ spring:
     mongodb:
       uri: ${MONGODB_URI:mongodb://localhost:27017/activityfitness}
       database: ${MONGODB_DATABASE:activityfitness}
+      auto-index-creation: true
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
@@ -27,13 +28,15 @@ kafka:
 eureka:
   client:
     service-url:
-      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+      defaultZone: "http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@${EUREKA_HOST:localhost}:${EUREKA_SERVER_PORT:8761}/eureka/"
   instance:
     prefer-ip-address: true
 
 app:
   jwt:
-    secret: ${JWT_SECRET}
+    issuer: ${JWT_ISSUER:https://userservice.fitness.local}
+    audience: ${JWT_AUDIENCE:fitness-api}
+    public-key: ${JWT_PUBLIC_KEY}
   internal:
     api-key: ${INTERNAL_API_KEY}
   user-service:
@@ -60,12 +63,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health
   endpoint:
     health:
       probes:
         enabled: true
 
 springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_ENABLED:false}
   swagger-ui:
+    enabled: ${SPRINGDOC_ENABLED:false}
     path: /swagger-ui.html
+
+logging:
+  pattern:
+    level: "%5p [%X{correlationId:-}]"

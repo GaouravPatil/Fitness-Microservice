@@ -2,7 +2,6 @@ package com.fitness.activityservice.controller;
 
 import com.fitness.activityservice.dto.ActivityResponse;
 import com.fitness.activityservice.model.ActivityType;
-import com.fitness.activityservice.security.JwtConfig;
 import com.fitness.activityservice.security.SecurityConfig;
 import com.fitness.activityservice.service.ActivityService;
 import org.junit.jupiter.api.Test;
@@ -12,6 +11,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ActivityController.class)
-@Import({SecurityConfig.class, JwtConfig.class})
+@Import(SecurityConfig.class)
 class ActivityControllerTest {
 
     @Autowired
@@ -35,9 +35,12 @@ class ActivityControllerTest {
     @MockitoBean
     private ActivityService activityService;
 
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
+
     @Test
     void trackActivityReturnsCreatedForOwner() throws Exception {
-        when(activityService.trackActivity(any())).thenReturn(response());
+        when(activityService.trackActivity(any(), any())).thenReturn(response());
 
         mockMvc.perform(post("/api/activities")
                         .with(jwt().jwt(token -> token.subject("user-1").claim("role", "USER")))

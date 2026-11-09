@@ -23,9 +23,12 @@ public class ActivityController {
 
     @PostMapping
     public ResponseEntity<ActivityResponse> trackActivity(@Valid @RequestBody ActivityRequest request,
+                                                          @RequestHeader(value = "Idempotency-Key", required = false)
+                                                          String idempotencyKey,
                                                           JwtAuthenticationToken authentication) {
         requireSelfOrAdmin(authentication, request.getUserId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(activityService.trackActivity(request));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(activityService.trackActivity(request, idempotencyKey));
     }
 
     @GetMapping("/user/{userId}")
