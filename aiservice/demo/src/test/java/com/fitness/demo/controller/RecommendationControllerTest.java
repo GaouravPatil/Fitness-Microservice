@@ -2,7 +2,6 @@ package com.fitness.demo.controller;
 
 import com.fitness.demo.dto.RecommendationResponse;
 import com.fitness.demo.exception.RecommendationNotFoundException;
-import com.fitness.demo.security.JwtConfig;
 import com.fitness.demo.security.SecurityConfig;
 import com.fitness.demo.service.RecommendationService;
 import org.junit.jupiter.api.Test;
@@ -11,6 +10,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(RecommendationController.class)
-@Import({SecurityConfig.class, JwtConfig.class})
+@Import(SecurityConfig.class)
 class RecommendationControllerTest {
 
     @Autowired
@@ -34,6 +34,9 @@ class RecommendationControllerTest {
 
     @MockitoBean
     private RecommendationService recommendationService;
+
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
 
     @Test
     void userRecommendationsRequireAuthentication() throws Exception {

@@ -5,6 +5,7 @@ import com.fitness.demo.event.ActivityEvent;
 import com.fitness.demo.exception.RecommendationNotFoundException;
 import com.fitness.demo.model.Recommendation;
 import com.fitness.demo.repository.RecommendationRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -33,11 +34,14 @@ class RecommendationServiceTest {
     @Mock
     private RecommendationGenerator recommendationGenerator;
 
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
     private RecommendationService recommendationService;
 
     @BeforeEach
     void setUp() {
-        recommendationService = new RecommendationService(recommendationRepository, recommendationGenerator);
+        recommendationService = new RecommendationService(recommendationRepository, recommendationGenerator,
+                meterRegistry);
     }
 
     @Test
@@ -83,6 +87,8 @@ class RecommendationServiceTest {
         assertThat(response.getActivityId()).isEqualTo("activity-1");
         assertThat(response.getRecommendation()).isEqualTo("summary");
         assertThat(response.getProvider()).isEqualTo("RULES");
+        assertThat(meterRegistry.counter("recommendation.provider.total", "provider", "RULES").count())
+                .isEqualTo(1.0);
     }
 
     @Test

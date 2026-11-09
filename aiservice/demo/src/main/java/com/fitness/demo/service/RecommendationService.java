@@ -5,6 +5,7 @@ import com.fitness.demo.event.ActivityEvent;
 import com.fitness.demo.exception.RecommendationNotFoundException;
 import com.fitness.demo.model.Recommendation;
 import com.fitness.demo.repository.RecommendationRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -18,6 +19,7 @@ public class RecommendationService {
 
     private final RecommendationRepository recommendationRepository;
     private final RecommendationGenerator recommendationGenerator;
+    private final MeterRegistry meterRegistry;
 
     public Page<RecommendationResponse> getUserRecommendations(String userId, Pageable pageable) {
         return recommendationRepository.findByUserId(userId, pageable)
@@ -45,6 +47,8 @@ public class RecommendationService {
         recommendation.setSuggestions(generated.suggestions());
         recommendation.setSafety(generated.safety());
         recommendation.setProvider(generated.provider());
+
+        meterRegistry.counter("recommendation.provider.total", "provider", generated.provider()).increment();
 
         Recommendation saved = recommendationRepository.save(recommendation);
         log.info("Stored recommendation {} for activity {} using {}", saved.getId(), event.getId(),
