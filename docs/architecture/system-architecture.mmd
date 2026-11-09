@@ -4,7 +4,7 @@ flowchart LR
     subgraph USERSVC["userservice · :8081"]
         direction TB
         UC["<b>UserController</b><br/>POST /api/users/register<br/>POST /api/users/login<br/>GET /api/users/{userId}<br/>GET /api/users/{userId}/validate (internal)"]
-        USVC["UserService · BCrypt<br/>AuthService<br/>JwtService · HS256 signer"]
+        USVC["UserService · BCrypt<br/>AuthService<br/>JwtService · RS256 signer"]
     end
 
     PG[("PostgreSQL :5432 · local<br/>fitnessdb<br/>table: users")]
@@ -30,7 +30,7 @@ flowchart LR
     MONGOR[("MongoDB :27017 · local<br/>activityfitness<br/>collection: recommendations")]
     OAI(["OpenAI API<br/>POST /v1/chat/completions"])
 
-    JWT{{"JWT_SECRET · env<br/>userservice signs<br/>activity + ai verify"}}
+    JWT{{"RSA key pair · env<br/>userservice signs<br/>activity + ai verify"}}
     APIKEY{{"INTERNAL_API_KEY · env<br/>header X-Internal-Api-Key<br/>constant-time compare"}}
     EUREKA["Eureka :8761<br/>service registry"]
 

@@ -27,14 +27,14 @@ sequenceDiagram
     U->>US: {email, password}
     US->>PG: findByEmailIgnoreCase(email)
     PG-->>US: user + BCrypt hash
-    Note right of US: BCrypt.matches<br/>claims: sub=userId, email, role, iat, exp<br/>HS256 signed with JWT_SECRET
+    Note right of US: BCrypt.matches<br/>claims: sub=userId, email, role, iat, exp, iss, aud<br/>RS256 signed; refresh token stored hashed
     US-->>U: 200 {accessToken, tokenType="Bearer", expiresInSeconds}
     end
 
     rect rgb(255, 247, 230)
     Note over U,MA: PHASE 3 · TRACK ACTIVITY — POST /api/activities
     U->>AS: Authorization: Bearer JWT<br/>{userId, type, duration, caloriesBurned, startTime, metrics}
-    Note right of AS: JWT verified with shared secret<br/>requireSelfOrAdmin: sub == userId OR ROLE_ADMIN
+    Note right of AS: JWT verified with public key + issuer/audience<br/>requireSelfOrAdmin: sub == userId OR ROLE_ADMIN
     AS->>EU: resolve USERSERVICE
     EU-->>AS: instance URI
     AS->>US: GET /api/users/{userId}/validate<br/>X-Internal-Api-Key
