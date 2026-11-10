@@ -8,6 +8,7 @@ Fitness activity tracking built as a Spring Boot microservice system.
 | `userservice` | 8081 | Registration, login (RS256 JWT), refresh/logout, profiles | PostgreSQL |
 | `activityservice` | 8082 | Activity tracking, user validation, Kafka producer | MongoDB |
 | `aiservice/demo` | 8083 | Kafka consumer, recommendation generation | MongoDB |
+| `frontend` | 3000 (dev) | React/Vite web client with Three.js visuals | Browser localStorage |
 
 ## Architecture
 
@@ -29,6 +30,7 @@ Client -> aiservice (JWT, owner or admin only)
 
 - JDK 24
 - Maven 3.9+
+- Node 24 (web frontend only)
 - Docker/Podman (for PostgreSQL, MongoDB and Kafka)
 - `openssl` and `keytool` (local TLS certificates)
 
@@ -73,6 +75,37 @@ infrastructure and all four services). `make status`, `make logs`,
 All service traffic is HTTPS. The local development CA is generated into
 `certs/` by `make certs` and is ignored by Git. Use
 `curl --cacert certs/ca.crt https://localhost:<port>/...` for direct calls.
+
+## Web frontend
+
+The React client lives in `frontend/`. It provides signup/login, the daily
+dashboard, activity history and logging, profile settings, local MET-based
+calorie estimates, and a Three.js background. Smartwatch sync is represented by
+a disabled placeholder for a future implementation.
+
+With the backend running:
+
+```bash
+cd frontend
+cp .env.example .env
+npm ci
+npm run dev
+```
+
+Open `http://localhost:3000`. Vite proxies `/api/users`, `/api/activities`, and
+`/api/recommendations` to the local HTTPS services and skips verification of the
+self-signed development certificates. `npm run build` performs a typecheck and
+writes a static `dist/` bundle.
+
+Production frontends can either share an origin with the services and be
+reverse-proxied under the same `/api/*` paths, or use absolute API bases from
+`VITE_USER_API_URL`, `VITE_ACTIVITY_API_URL`, and
+`VITE_RECOMMENDATION_API_URL` at build time. For separate origins, add the
+frontend origin to `CORS_ALLOWED_ORIGINS` and restart all three services. A
+`frontend/Dockerfile` (nginx), `vercel.json`, and Netlify `_redirects` file are
+included. Measure Lighthouse against `npm run preview` or the deployed build,
+not the Vite dev server. See `frontend/README.md` for performance, deployment,
+API integration, and security notes.
 
 ## Configuration
 
