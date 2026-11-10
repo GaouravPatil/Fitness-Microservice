@@ -10,6 +10,21 @@ endif
 MVN ?= mvn
 JAVA ?= java
 JAVA_OPTS ?=
+TLS_ENABLED ?= false
+TLS_CERT_DIR ?= certs
+
+ifeq ($(TLS_ENABLED),true)
+APP_SCHEME := https
+TLS_CURL := curl --cacert $(TLS_CERT_DIR)/ca.crt
+JAVA_OPTS += -Djavax.net.ssl.trustStore=$(CURDIR)/$(TLS_CERT_DIR)/truststore.p12 \
+	-Djavax.net.ssl.trustStorePassword=$(TLS_TRUSTSTORE_PASSWORD) \
+	-Djavax.net.ssl.trustStoreType=PKCS12
+else
+APP_SCHEME := http
+TLS_CURL := curl
+endif
+
+KAFKA_BROKER_JAAS := org.apache.kafka.common.security.plain.PlainLoginModule required username="broker" password="$(KAFKA_SASL_PASSWORD)" user_broker="$(KAFKA_SASL_PASSWORD)" user_$(KAFKA_SASL_USERNAME)="$(KAFKA_SASL_PASSWORD)";
 
 EUREKA_JAR   := eureka/target/eureka-0.0.1-SNAPSHOT.jar
 USER_JAR     := userservice/target/userservice-0.0.1-SNAPSHOT.jar
@@ -26,10 +41,11 @@ PODMAN_OK := $(shell command -v podman >/dev/null 2>&1 && echo yes || echo no)
 PODMAN_AUTHFILE ?=
 PODMAN_AUTH_ARG := $(if $(PODMAN_AUTHFILE),--authfile $(PODMAN_AUTHFILE),)
 
-.PHONY: run start stop stop-apps infra infra-down build test clean logs status restart help
+.PHONY: run start stop stop-apps infra infra-down build test clean logs status restart certs help
 
 ## run: build everything, start infrastructure and all services
 run:
+	@$(MAKE) --no-print-directory certs
 	@$(MAKE) --no-print-directory stop-apps
 	@$(MAKE) --no-print-directory build
 	@$(MAKE) --no-print-directory infra
@@ -37,6 +53,7 @@ run:
 
 ## start: start the four Spring Boot services (jars must exist)
 start:
+	@$(MAKE) --no-print-directory certs
 	@set -e; \
 	for jar in $(ALL_JARS); do \
 		if [ ! -f "$$jar" ]; then echo "Missing $$jar. Run 'make build' first."; exit 1; fi; \
@@ -48,7 +65,7 @@ start:
 		nohup $(JAVA) $(JAVA_OPTS) -jar "$$jar" > "$(LOG_DIR)/$$name.log" 2>&1 & \
 		echo $$! > "$(RUN_DIR)/$$name.pid"; \
 		for i in $$(seq 1 90); do \
-			if curl -sf "http://localhost:$$port/actuator/health" >/dev/null 2>&1; then \
+			if $(TLS_CURL) -sf "$(APP_SCHEME)://localhost:$$port/actuator/health" >/dev/null 2>&1; then \
 				echo "  $$name is UP on port $$port"; return 0; \
 			fi; \
 			if ! kill -0 "$$(cat $(RUN_DIR)/$$name.pid)" 2>/dev/null; then \
@@ -64,10 +81,10 @@ start:
 	start_service aiservice $(AI_JAR) 8083; \
 	echo ""; \
 	echo "All services are running:"; \
-	echo "  Eureka          http://localhost:8761"; \
-	echo "  Users           http://localhost:8081/swagger-ui.html"; \
-	echo "  Activities      http://localhost:8082/swagger-ui.html"; \
-	echo "  Recommendations http://localhost:8083/swagger-ui.html"; \
+	echo "  Eureka          $(APP_SCHEME)://localhost:8761"; \
+	echo "  Users           $(APP_SCHEME)://localhost:8081/swagger-ui.html"; \
+	echo "  Activities      $(APP_SCHEME)://localhost:8082/swagger-ui.html"; \
+	echo "  Recommendations $(APP_SCHEME)://localhost:8083/swagger-ui.html"; \
 	echo ""; \
 	echo "Logs: make logs  |  Status: make status  |  Stop: make stop"
 
@@ -91,6 +108,7 @@ stop-apps:
 
 ## infra: start PostgreSQL, MongoDB and Kafka
 infra:
+	@$(MAKE) --no-print-directory certs
 ifeq ($(DOCKER_OK),yes)
 	@echo "Starting infrastructure with Docker Compose..."
 	@docker compose up -d
@@ -114,18 +132,38 @@ else ifeq ($(PODMAN_OK),yes)
 				-p 127.0.0.1:27017:27017 docker.io/mongo:7 >/dev/null; \
 		fi; \
 	fi; \
+	if podman container exists fitness-kafka; then \
+		if ! podman inspect fitness-kafka --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -q '^KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=.*SASL_SSL'; then \
+			echo "Recreating Kafka with SASL_SSL configuration..."; \
+			podman rm -f fitness-kafka >/dev/null; \
+		fi; \
+	fi; \
 	if ! (echo >/dev/tcp/127.0.0.1/9092) 2>/dev/null; then \
 		if podman container exists fitness-kafka; then \
 			podman start fitness-kafka >/dev/null; \
 		else \
 			podman $(PODMAN_AUTH_ARG) run -d --name fitness-kafka -p 127.0.0.1:9092:9092 \
+				--userns=keep-id \
+				-v "$(CURDIR)/$(TLS_CERT_DIR):/etc/kafka/secrets:ro" \
 				-e KAFKA_NODE_ID=1 \
 				-e KAFKA_PROCESS_ROLES=broker,controller \
-				-e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093 \
-				-e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 \
-				-e KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT \
+				-e KAFKA_LISTENERS=SASL_SSL://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093 \
+				-e KAFKA_ADVERTISED_LISTENERS=SASL_SSL://localhost:9092 \
+				-e KAFKA_INTER_BROKER_LISTENER_NAME=SASL_SSL \
 				-e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
-				-e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
+				-e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,SASL_SSL:SASL_SSL \
+				-e KAFKA_SASL_ENABLED_MECHANISMS=PLAIN \
+				-e KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL=PLAIN \
+				-e KAFKA_LISTENER_NAME_SASL_SSL_PLAIN_SASL_JAAS_CONFIG='$(KAFKA_BROKER_JAAS)' \
+				-e KAFKA_OPTS=-Djava.security.auth.login.config=/etc/kafka/secrets/kafka_server_jaas.conf \
+				-e KAFKA_SSL_KEYSTORE_FILENAME=kafka.p12 \
+				-e KAFKA_SSL_KEYSTORE_CREDENTIALS=kafka.keystore.password \
+				-e KAFKA_SSL_KEY_CREDENTIALS=kafka.key.password \
+				-e KAFKA_SSL_KEYSTORE_TYPE=PKCS12 \
+				-e KAFKA_SSL_TRUSTSTORE_LOCATION=/etc/kafka/secrets/truststore.p12 \
+				-e KAFKA_SSL_TRUSTSTORE_PASSWORD='$(TLS_TRUSTSTORE_PASSWORD)' \
+				-e KAFKA_SSL_TRUSTSTORE_TYPE=PKCS12 \
+				-e KAFKA_SSL_CLIENT_AUTH=none \
 				-e KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093 \
 				-e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
 				-e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1 \
@@ -143,6 +181,13 @@ else ifeq ($(PODMAN_OK),yes)
 			if [ "$$i" -eq 60 ]; then echo "  $$name did not become ready on port $$port"; exit 1; fi; \
 			sleep 1; \
 		done; \
+	done; \
+	for i in $$(seq 1 60); do \
+		if podman exec fitness-kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --command-config /etc/kafka/secrets/kafka-client.properties --list >/dev/null 2>&1; then \
+			echo "  kafka SASL_SSL authentication is ready"; break; \
+		fi; \
+		if [ "$$i" -eq 60 ]; then echo "  kafka SASL_SSL authentication did not become ready"; exit 1; fi; \
+		sleep 1; \
 	done
 else
 	@echo "No container runtime available. Install Docker or Podman."
@@ -158,6 +203,10 @@ else ifeq ($(PODMAN_OK),yes)
 		if podman container exists "$$c"; then podman stop "$$c" >/dev/null 2>&1 || true; fi; \
 	done
 endif
+
+## certs: generate the local development CA, service certificates and truststore
+certs:
+	@./scripts/generate-certs.sh
 
 ## build: compile and package all modules
 build:
@@ -188,7 +237,7 @@ status:
 	@echo "Services:"
 	@for entry in eureka:8761 userservice:8081 activityservice:8082 aiservice:8083; do \
 		name=$${entry%%:*}; port=$${entry##*:}; \
-		if curl -sf "http://localhost:$$port/actuator/health" >/dev/null 2>&1; then \
+		if $(TLS_CURL) -sf "$(APP_SCHEME)://localhost:$$port/actuator/health" >/dev/null 2>&1; then \
 			echo "  $$name ($$port): UP"; \
 		elif (echo >/dev/tcp/127.0.0.1/$$port) 2>/dev/null; then \
 			echo "  $$name ($$port): LISTENING"; \
@@ -221,6 +270,7 @@ help:
 	@echo "  make restart   Restart only the Spring Boot services"
 	@echo "  make build     Build all modules"
 	@echo "  make test      Run all tests"
+	@echo "  make certs     Generate local development TLS certificates"
 	@echo "  make status    Show service and infrastructure status"
 	@echo "  make logs      Follow service logs"
 	@echo "  make clean     Stop everything and remove build artifacts"
