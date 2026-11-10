@@ -30,16 +30,20 @@ Client -> aiservice (JWT, owner or admin only)
 - JDK 24
 - Maven 3.9+
 - Docker/Podman (for PostgreSQL, MongoDB and Kafka)
+- `openssl` and `keytool` (local TLS certificates)
 
 ## Start infrastructure
 
 ```bash
+make certs
 docker compose up -d
 ```
 
 Services use these defaults: PostgreSQL `localhost:5432/fitnessdb`, MongoDB
 `localhost:27017`, Kafka `localhost:9092`. Docker Compose binds all published
-ports to `127.0.0.1`; Kafka is PLAINTEXT for local development only.
+ports to `127.0.0.1`. Kafka accepts only `SASL_SSL` clients authenticated with
+the credentials in `.env`; its controller listener is PLAINTEXT but is not
+published outside the container network.
 
 ## Build and test
 
@@ -60,10 +64,15 @@ mvn -pl activityservice spring-boot:run
 mvn -pl aiservice/demo spring-boot:run
 ```
 
-Or use `make run` (builds everything, starts infrastructure and all four services).
-`make status`, `make logs`, `make restart` and `make stop` are also available.
-The Eureka dashboard is at `http://localhost:8761` and requires
+Or use `make run` (generates certificates, builds everything, starts
+infrastructure and all four services). `make status`, `make logs`,
+`make restart` and `make stop` are also available. The Eureka dashboard is at
+`https://localhost:8761` (trust `certs/ca.crt`) and requires
 `EUREKA_USERNAME` / `EUREKA_PASSWORD`.
+
+All service traffic is HTTPS. The local development CA is generated into
+`certs/` by `make certs` and is ignored by Git. Use
+`curl --cacert certs/ca.crt https://localhost:<port>/...` for direct calls.
 
 ## Configuration
 
@@ -95,11 +104,23 @@ Important variables:
 | `MONGODB_URI`, `MONGODB_DATABASE` | activityservice | local MongoDB (`activityfitness`) |
 | `AI_MONGODB_URI`, `AI_MONGODB_DATABASE` | aiservice | local MongoDB (`airecommendationfitness`) |
 | `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_TOPIC` | activityservice, aiservice | `localhost:9092`, `activity-topic` |
+| `KAFKA_SECURITY_PROTOCOL`, `KAFKA_SASL_MECHANISM` | activityservice, aiservice | `SASL_SSL`, `PLAIN` |
+| `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`, `KAFKA_SASL_JAAS_CONFIG` | activityservice, aiservice | required |
+| `KAFKA_TRUSTSTORE_LOCATION`, `KAFKA_TRUSTSTORE_PASSWORD` | activityservice, aiservice | `certs/truststore.p12`, required |
 | `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL` | aiservice | empty key -> rule-based advice |
-| `EUREKA_USERNAME`, `EUREKA_PASSWORD`, `EUREKA_HOST` | all services | local Eureka with basic auth |
+| `TLS_ENABLED`, `TLS_CERT_DIR` | all services, Eureka | `true`, `certs` |
+| `TLS_KEYSTORE_PASSWORD`, `TLS_TRUSTSTORE_PASSWORD` | all services, Eureka, Kafka | required by `make certs` |
+| `EUREKA_SCHEME`, `EUREKA_USERNAME`, `EUREKA_PASSWORD`, `EUREKA_HOST` | all services | `https`, local Eureka basic auth |
 | `EUREKA_BIND_ADDRESS`, `EUREKA_SERVER_PORT` | eureka | `127.0.0.1`, `8761` |
+| `EUREKA_INSTANCE_HOSTNAME`, `EUREKA_PREFER_IP_ADDRESS`, `EUREKA_NON_SECURE_PORT_ENABLED` | all services | `localhost`, `false`, `false` |
+| `USER_SERVICE_URL` | activityservice | `https://USERSERVICE` |
 | `CORS_ALLOWED_ORIGINS` | all services | `http://localhost:3000` |
 | `SPRINGDOC_ENABLED` | userservice, activityservice, aiservice | `false` |
+
+`make certs` creates a development CA, one certificate per service, a common
+truststore and Kafka SASL credentials. The generated keys, passwords and
+truststore are only for local development; use your platform CA/secret manager
+in production. The private CA key stays in `certs/` and must never be committed.
 
 Internal keys can be rotated without downtime: put the new key first in
 `INTERNAL_API_KEYS`, deploy, then remove the old key.
@@ -109,7 +130,7 @@ Internal keys can be rotated without downtime: put the new key first in
 Register (returns `201`, never returns the password; passwords require 8-72 characters):
 
 ```bash
-curl -X POST http://localhost:8081/api/users/register \
+curl --cacert certs/ca.crt -X POST https://localhost:8081/api/users/register \
   -H 'Content-Type: application/json' \
   -d '{"email":"jane@example.com","password":"secret123","firstName":"Jane","lastName":"Doe"}'
 ```
@@ -117,7 +138,7 @@ curl -X POST http://localhost:8081/api/users/register \
 Login and capture both tokens:
 
 ```bash
-LOGIN=$(curl -s -X POST http://localhost:8081/api/users/login \
+LOGIN=$(curl --cacert certs/ca.crt -s -X POST https://localhost:8081/api/users/login \
   -H 'Content-Type: application/json' \
   -d '{"email":"jane@example.com","password":"secret123"}')
 TOKEN=$(echo "$LOGIN" | jq -r .accessToken)
@@ -127,7 +148,7 @@ REFRESH=$(echo "$LOGIN" | jq -r .refreshToken)
 Access tokens expire after 15 minutes. Rotate the refresh token:
 
 ```bash
-curl -X POST http://localhost:8081/api/users/refresh \
+curl --cacert certs/ca.crt -X POST https://localhost:8081/api/users/refresh \
   -H 'Content-Type: application/json' \
   -d "{\"refreshToken\":\"$REFRESH\"}"
 ```
@@ -135,7 +156,7 @@ curl -X POST http://localhost:8081/api/users/refresh \
 Revoke a refresh token on logout:
 
 ```bash
-curl -X POST http://localhost:8081/api/users/logout \
+curl --cacert certs/ca.crt -X POST https://localhost:8081/api/users/logout \
   -H 'Content-Type: application/json' \
   -d "{\"refreshToken\":\"$REFRESH\"}"
 ```
@@ -144,7 +165,7 @@ Track an activity (the JWT subject must match `userId`). Send an
 `Idempotency-Key` header to make retries safe:
 
 ```bash
-curl -X POST http://localhost:8082/api/activities \
+curl --cacert certs/ca.crt -X POST https://localhost:8082/api/activities \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -H 'Idempotency-Key: 6f0c2f8e-1a9b-4f36-9f30-2b7f3c4d5e6f' \
@@ -154,9 +175,9 @@ curl -X POST http://localhost:8082/api/activities \
 Read activities and recommendations:
 
 ```bash
-curl -H "Authorization: Bearer $TOKEN" 'http://localhost:8082/api/activities/user/<user-id>?page=0&size=20'
-curl -H "Authorization: Bearer $TOKEN" 'http://localhost:8083/api/recommendations/user/<user-id>?page=0&size=20'
-curl -H "Authorization: Bearer $TOKEN" 'http://localhost:8083/api/recommendations/activity/<activity-id>'
+curl --cacert certs/ca.crt -H "Authorization: Bearer $TOKEN" 'https://localhost:8082/api/activities/user/<user-id>?page=0&size=20'
+curl --cacert certs/ca.crt -H "Authorization: Bearer $TOKEN" 'https://localhost:8083/api/recommendations/user/<user-id>?page=0&size=20'
+curl --cacert certs/ca.crt -H "Authorization: Bearer $TOKEN" 'https://localhost:8083/api/recommendations/activity/<activity-id>'
 ```
 
 OpenAPI UI (only when `SPRINGDOC_ENABLED=true`): `http://localhost:<port>/swagger-ui.html`
@@ -177,8 +198,19 @@ Health: `http://localhost:<port>/actuator/health`
 - Profile, activity and recommendation endpoints enforce owner-or-admin access.
 - Swagger/OpenAPI is disabled by default and actuator exposes only `health`.
 - Eureka requires HTTP Basic authentication; the server binds to loopback by default.
-- Never commit `.env`, the private key or the AI API key. Rotate any credential
-  that has been shared or exposed.
+- Services and Eureka serve HTTPS with certificates issued by the local
+  development CA. Activity-to-userservice discovery resolves to
+  `https://USERSERVICE` and validates the CA through the JVM truststore.
+- Kafka requires `SASL_SSL` with PLAIN authentication over TLS; unauthorized or
+  plaintext clients are rejected. The Kafka controller listener is PLAINTEXT but
+  is not exposed outside the container.
+- Never commit `.env`, private keys, generated certificates, the internal API
+  key or the AI API key. Rotate any credential that has been shared or exposed.
+  To rotate JWT signing keys, generate a new RSA pair, update
+  `JWT_PRIVATE_KEY`/`JWT_PUBLIC_KEY`/`JWT_KEY_ID`, and restart the services.
+  To rotate TLS, run `FORCE_CERT_REGEN=1 make certs` and restart all services.
+  Revoke leaked AI keys in the provider console and store replacements only in
+  `.env` or a secrets manager.
 
 ## Operational notes
 
@@ -194,5 +226,6 @@ Health: `http://localhost:<port>/actuator/health`
   Hibernate runs with `ddl-auto=validate`.
 - MongoDB compound indexes are created automatically for activity and
   recommendation lookups.
-- For production, terminate TLS in front of every service and configure Kafka
-  with SASL/SSL instead of PLAINTEXT.
+- The generated CA, keystores and Kafka passwords are local-development
+  material. In production use a managed CA, a secrets manager, SCRAM or OAuth
+  for Kafka, ACLs, and rotate credentials on a schedule.
