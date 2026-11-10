@@ -10,6 +10,14 @@ spring:
 
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:SASL_SSL}
+      sasl.mechanism: ${KAFKA_SASL_MECHANISM:PLAIN}
+      sasl.jaas.config: '${KAFKA_SASL_JAAS_CONFIG}'
+      ssl.truststore.location: ${KAFKA_TRUSTSTORE_LOCATION:certs/truststore.p12}
+      ssl.truststore.password: '${KAFKA_TRUSTSTORE_PASSWORD}'
+      ssl.truststore.type: PKCS12
+      ssl.endpoint.identification.algorithm: https
     consumer:
       group-id: ${KAFKA_CONSUMER_GROUP:aiservice}
       auto-offset-reset: earliest
@@ -21,9 +29,16 @@ kafka:
 eureka:
   client:
     service-url:
-      defaultZone: "http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@${EUREKA_HOST:localhost}:${EUREKA_SERVER_PORT:8761}/eureka/"
+      defaultZone: "${EUREKA_SCHEME:http}://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@${EUREKA_HOST:localhost}:${EUREKA_SERVER_PORT:8761}/eureka/"
   instance:
-    prefer-ip-address: true
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:localhost}
+    prefer-ip-address: ${EUREKA_PREFER_IP_ADDRESS:false}
+    secure-port-enabled: ${TLS_ENABLED:false}
+    non-secure-port-enabled: ${EUREKA_NON_SECURE_PORT_ENABLED:true}
+    secure-port: ${server.port}
+    home-page-url: "${EUREKA_SCHEME:http}://${EUREKA_INSTANCE_HOSTNAME:localhost}:${server.port}/"
+    status-page-url: "${EUREKA_SCHEME:http}://${EUREKA_INSTANCE_HOSTNAME:localhost}:${server.port}/actuator/info"
+    health-check-url: "${EUREKA_SCHEME:http}://${EUREKA_INSTANCE_HOSTNAME:localhost}:${server.port}/actuator/health"
 
 app:
   jwt:
@@ -39,6 +54,12 @@ app:
 
 server:
   port: ${AI_SERVICE_PORT:8083}
+  ssl:
+    enabled: ${TLS_ENABLED:false}
+    key-store: "file:${TLS_CERT_DIR:certs}/aiservice.p12"
+    key-store-password: ${TLS_KEYSTORE_PASSWORD:changeit}
+    key-store-type: PKCS12
+    key-alias: aiservice
 
 management:
   endpoints:

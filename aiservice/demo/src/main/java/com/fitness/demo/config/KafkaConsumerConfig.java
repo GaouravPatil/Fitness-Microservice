@@ -26,6 +26,7 @@ public class KafkaConsumerConfig {
             KafkaProperties kafkaProperties, ObjectMapper objectMapper) {
 
         Map<String, Object> properties = new HashMap<>();
+        properties.putAll(kafkaProperties.getProperties());
         properties.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaProperties.getBootstrapServers());
         properties.put(ConsumerConfig.GROUP_ID_CONFIG, kafkaProperties.getConsumer().getGroupId());
         properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, kafkaProperties.getConsumer().getAutoOffsetReset());
