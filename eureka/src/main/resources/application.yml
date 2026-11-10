@@ -9,6 +9,12 @@ spring:
 server:
   port: ${EUREKA_SERVER_PORT:8761}
   address: ${EUREKA_BIND_ADDRESS:127.0.0.1}
+  ssl:
+    enabled: ${TLS_ENABLED:false}
+    key-store: "file:${TLS_CERT_DIR:certs}/eureka.p12"
+    key-store-password: ${TLS_KEYSTORE_PASSWORD:changeit}
+    key-store-type: PKCS12
+    key-alias: eureka
 
 eureka:
   client:
