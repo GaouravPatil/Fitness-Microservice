@@ -25,9 +25,16 @@ spring:
 eureka:
   client:
     service-url:
-      defaultZone: "http://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@${EUREKA_HOST:localhost}:${EUREKA_SERVER_PORT:8761}/eureka/"
+      defaultZone: "${EUREKA_SCHEME:http}://${EUREKA_USERNAME}:${EUREKA_PASSWORD}@${EUREKA_HOST:localhost}:${EUREKA_SERVER_PORT:8761}/eureka/"
   instance:
-    prefer-ip-address: true
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:localhost}
+    prefer-ip-address: ${EUREKA_PREFER_IP_ADDRESS:false}
+    secure-port-enabled: ${TLS_ENABLED:false}
+    non-secure-port-enabled: ${EUREKA_NON_SECURE_PORT_ENABLED:true}
+    secure-port: ${server.port}
+    home-page-url: "${EUREKA_SCHEME:http}://${EUREKA_INSTANCE_HOSTNAME:localhost}:${server.port}/"
+    status-page-url: "${EUREKA_SCHEME:http}://${EUREKA_INSTANCE_HOSTNAME:localhost}:${server.port}/actuator/info"
+    health-check-url: "${EUREKA_SCHEME:http}://${EUREKA_INSTANCE_HOSTNAME:localhost}:${server.port}/actuator/health"
 
 app:
   jwt:
@@ -54,6 +61,12 @@ app:
 
 server:
   port: ${USERSERVICE_PORT:8081}
+  ssl:
+    enabled: ${TLS_ENABLED:false}
+    key-store: "file:${TLS_CERT_DIR:certs}/userservice.p12"
+    key-store-password: ${TLS_KEYSTORE_PASSWORD:changeit}
+    key-store-type: PKCS12
+    key-alias: userservice
 
 management:
   endpoints:

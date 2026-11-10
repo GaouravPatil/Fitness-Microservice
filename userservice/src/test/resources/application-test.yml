@@ -13,6 +13,10 @@ spring:
     discovery:
       enabled: false
 
+server:
+  ssl:
+    enabled: false
+
 eureka:
   client:
     enabled: false
