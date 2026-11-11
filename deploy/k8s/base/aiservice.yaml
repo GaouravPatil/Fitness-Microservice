@@ -1,0 +1,137 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiservice
+  labels:
+    app.kubernetes.io/name: aiservice
+    app.kubernetes.io/part-of: fitness
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aiservice
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: aiservice
+        app.kubernetes.io/part-of: fitness
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: aiservice
+          image: fitness/aiservice:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8083
+          envFrom:
+            - configMapRef:
+                name: fitness-common
+          env:
+            - name: AI_SERVICE_PORT
+              value: "8083"
+            - name: MONGO_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: MONGO_ROOT_USERNAME
+            - name: MONGO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: MONGO_ROOT_PASSWORD
+            - name: AI_MONGODB_URI
+              value: "mongodb://$(MONGO_ROOT_USERNAME):$(MONGO_ROOT_PASSWORD)@mongodb:27017/airecommendationfitness?authSource=admin"
+            - name: AI_MONGODB_DATABASE
+              value: "airecommendationfitness"
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: "kafka:9092"
+            - name: KAFKA_SASL_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: KAFKA_SASL_USERNAME
+            - name: KAFKA_SASL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: KAFKA_SASL_PASSWORD
+            - name: KAFKA_SASL_JAAS_CONFIG
+              value: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="$(KAFKA_SASL_USERNAME)" password="$(KAFKA_SASL_PASSWORD)";'
+            - name: AI_BASE_URL
+              value: "https://api.mistral.ai/v1"
+            - name: AI_MODEL
+              value: "mistral-small-latest"
+            - name: AI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: AI_API_KEY
+            - name: JWT_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: JWT_PUBLIC_KEY
+            - name: INTERNAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: INTERNAL_API_KEY
+            - name: EUREKA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: EUREKA_USERNAME
+            - name: EUREKA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: EUREKA_PASSWORD
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: "$(POD_IP)"
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aiservice
+  labels:
+    app.kubernetes.io/name: aiservice
+    app.kubernetes.io/part-of: fitness
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: aiservice
+  ports:
+    - name: http
+      port: 8083
+      targetPort: http

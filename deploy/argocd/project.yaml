@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: fitness
+  namespace: argocd
+spec:
+  description: Fitness microservices, data services, and API ingress
+  sourceRepos:
+    - https://github.com/GaouravPatil/Fitness-Microservice.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: fitness-dev
+    - server: https://kubernetes.default.svc
+      namespace: fitness-prod
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

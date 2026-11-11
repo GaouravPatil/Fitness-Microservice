@@ -1,0 +1,44 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fitness-api
+  labels:
+    app.kubernetes.io/name: fitness-api
+    app.kubernetes.io/part-of: fitness
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: fitness
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health
+    alb.ingress.kubernetes.io/success-codes: "200"
+    alb.ingress.kubernetes.io/load-balancer-attributes: routing.http.drop_invalid_header_fields.enabled=true
+spec:
+  ingressClassName: alb
+  rules:
+    - host: api.gaourav.space
+      http:
+        paths:
+          - path: /api/users
+            pathType: Prefix
+            backend:
+              service:
+                name: userservice
+                port:
+                  name: http
+          - path: /api/activities
+            pathType: Prefix
+            backend:
+              service:
+                name: activityservice
+                port:
+                  name: http
+          - path: /api/recommendations
+            pathType: Prefix
+            backend:
+              service:
+                name: aiservice
+                port:
+                  name: http

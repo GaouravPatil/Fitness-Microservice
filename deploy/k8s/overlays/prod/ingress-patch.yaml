@@ -1,0 +1,12 @@
+- op: replace
+  path: /spec/rules/0/host
+  value: api.gaourav.space
+- op: replace
+  path: /metadata/annotations/alb.ingress.kubernetes.io~1group.name
+  value: fitness-prod
+- op: replace
+  path: /metadata/annotations/alb.ingress.kubernetes.io~1listen-ports
+  value: '[{"HTTPS":443}]'
+- op: add
+  path: /metadata/annotations/alb.ingress.kubernetes.io~1certificate-arn
+  value: REPLACE_WITH_ACM_CERTIFICATE_ARN

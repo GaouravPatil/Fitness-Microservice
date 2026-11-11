@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: userservice
+  labels:
+    app.kubernetes.io/name: userservice
+    app.kubernetes.io/part-of: fitness
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: userservice
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: userservice
+        app.kubernetes.io/part-of: fitness
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: userservice
+          image: fitness/userservice:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: fitness-common
+          env:
+            - name: USERSERVICE_PORT
+              value: "8081"
+            - name: DB_URL
+              value: "jdbc:postgresql://postgres:5432/fitnessdb"
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: DB_PASSWORD
+            - name: JWT_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: JWT_PRIVATE_KEY
+            - name: JWT_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: JWT_PUBLIC_KEY
+            - name: INTERNAL_API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: INTERNAL_API_KEYS
+            - name: EUREKA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: EUREKA_USERNAME
+            - name: EUREKA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: EUREKA_PASSWORD
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: EUREKA_INSTANCE_HOSTNAME
+              value: "$(POD_IP)"
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: userservice
+  labels:
+    app.kubernetes.io/name: userservice
+    app.kubernetes.io/part-of: fitness
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: userservice
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http

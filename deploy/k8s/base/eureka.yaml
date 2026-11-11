@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eureka
+  labels:
+    app.kubernetes.io/name: eureka
+    app.kubernetes.io/part-of: fitness
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: eureka
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: eureka
+        app.kubernetes.io/part-of: fitness
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: eureka
+          image: fitness/eureka:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8761
+          envFrom:
+            - configMapRef:
+                name: fitness-common
+          env:
+            - name: EUREKA_BIND_ADDRESS
+              value: "0.0.0.0"
+            - name: EUREKA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: EUREKA_USERNAME
+            - name: EUREKA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fitness-secrets
+                  key: EUREKA_PASSWORD
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eureka
+  labels:
+    app.kubernetes.io/name: eureka
+    app.kubernetes.io/part-of: fitness
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: eureka
+  ports:
+    - name: http
+      port: 8761
+      targetPort: http

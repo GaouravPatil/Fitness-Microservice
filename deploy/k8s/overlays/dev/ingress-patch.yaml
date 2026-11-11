@@ -1,0 +1,6 @@
+- op: replace
+  path: /spec/rules/0/host
+  value: api-dev.gaourav.space
+- op: replace
+  path: /metadata/annotations/alb.ingress.kubernetes.io~1group.name
+  value: fitness-dev
