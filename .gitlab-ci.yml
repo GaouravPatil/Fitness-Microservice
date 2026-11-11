@@ -1,0 +1,140 @@
+stages:
+  - test
+  - publish
+  - deploy
+
+default:
+  interruptible: true
+
+variables:
+  MAVEN_CLI_OPTS: "-B -ntp"
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
+  AWS_REGION: "ap-south-1"
+  ECR_NAMESPACE: "fitness"
+  GITOPS_BRANCH: "main"
+  GITOPS_REPO: "GaouravPatil/Fitness-Microservice"
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_HOST: "tcp://docker:2376"
+  DOCKER_TLS_VERIFY: "1"
+  DOCKER_CERT_PATH: "/certs/client"
+
+test:backend:
+  stage: test
+  image: maven:3.9.11-eclipse-temurin-24
+  cache:
+    key: "maven-$CI_COMMIT_REF_SLUG"
+    paths:
+      - .m2/repository
+  script:
+    - mvn $MAVEN_CLI_OPTS verify
+  artifacts:
+    expire_in: 1 day
+    paths:
+      - eureka/target/*.jar
+      - userservice/target/*.jar
+      - activityservice/target/*.jar
+      - aiservice/demo/target/*.jar
+
+test:frontend:
+  stage: test
+  image: node:24-alpine
+  cache:
+    key: "npm-$CI_COMMIT_REF_SLUG"
+    paths:
+      - frontend/node_modules
+  script:
+    - cd frontend
+    - npm ci
+    - npm run lint
+    - npm run typecheck
+    - npm run build
+
+validate:manifests:
+  stage: test
+  image: alpine:3.21
+  before_script:
+    - apk add --no-cache curl tar
+    - curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.6.0/kustomize_v5.6.0_linux_amd64.tar.gz" | tar -xz -C /usr/local/bin kustomize
+  script:
+    - kustomize build deploy/k8s/overlays/dev > /dev/null
+    - kustomize build deploy/k8s/overlays/prod > /dev/null
+
+publish:images:
+  stage: publish
+  image: docker:27.5.1
+  services:
+    - name: docker:27.5.1-dind
+      alias: docker
+  needs:
+    - test:backend
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: https://gitlab.com
+  parallel:
+    matrix:
+      - SERVICE: eureka
+        JAR_FILE: eureka/target/eureka-0.0.1-SNAPSHOT.jar
+      - SERVICE: userservice
+        JAR_FILE: userservice/target/userservice-0.0.1-SNAPSHOT.jar
+      - SERVICE: activityservice
+        JAR_FILE: activityservice/target/activityservice-0.0.1-SNAPSHOT.jar
+      - SERVICE: aiservice
+        JAR_FILE: aiservice/demo/target/aiservice-0.0.1-SNAPSHOT.jar
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  before_script:
+    - apk add --no-cache aws-cli jq
+    - |
+      if [ -n "${AWS_ROLE_ARN:-}" ]; then
+        CREDS=$(aws sts assume-role-with-web-identity \
+          --role-arn "$AWS_ROLE_ARN" \
+          --role-session-name "gitlab-$CI_PROJECT_ID-$CI_PIPELINE_ID" \
+          --web-identity-token "$GITLAB_OIDC_TOKEN" \
+          --output json)
+        export AWS_ACCESS_KEY_ID=$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')
+        export AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')
+        export AWS_SESSION_TOKEN=$(echo "$CREDS" | jq -r '.Credentials.SessionToken')
+      fi
+      export AWS_DEFAULT_REGION="$AWS_REGION"
+  script:
+    - test -n "${ECR_REGISTRY:-}" || { echo "ECR_REGISTRY is not set"; exit 1; }
+    - mkdir -p dist
+    - cp "$JAR_FILE" "dist/$SERVICE.jar"
+    - IMAGE="$ECR_REGISTRY/$ECR_NAMESPACE/$SERVICE"
+    - aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+    - docker build --pull -f deploy/docker/Dockerfile.backend --build-arg JAR_FILE="dist/$SERVICE.jar" -t "$IMAGE:$CI_COMMIT_SHORT_SHA" .
+    - docker push "$IMAGE:$CI_COMMIT_SHORT_SHA"
+
+gitops:update:
+  stage: deploy
+  image: alpine:3.21
+  interruptible: false
+  resource_group: gitops
+  needs:
+    - publish:images
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $GITOPS_TOKEN'
+  before_script:
+    - apk add --no-cache curl git tar
+    - curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.6.0/kustomize_v5.6.0_linux_amd64.tar.gz" | tar -xz -C /usr/local/bin kustomize
+    - test -n "${ECR_REGISTRY:-}" || { echo "ECR_REGISTRY is not set"; exit 1; }
+  script:
+    - git clone --depth 1 --branch "$GITOPS_BRANCH" "https://x-access-token:${GITOPS_TOKEN}@github.com/${GITOPS_REPO}.git" repo
+    - cd repo
+    - git config user.name "gitlab-ci"
+    - git config user.email "gitlab-ci@users.noreply.github.com"
+    - |
+      for env in dev prod; do
+        (
+          cd "deploy/k8s/overlays/$env"
+          kustomize edit set image \
+            "fitness/eureka=$ECR_REGISTRY/$ECR_NAMESPACE/eureka:$CI_COMMIT_SHORT_SHA" \
+            "fitness/userservice=$ECR_REGISTRY/$ECR_NAMESPACE/userservice:$CI_COMMIT_SHORT_SHA" \
+            "fitness/activityservice=$ECR_REGISTRY/$ECR_NAMESPACE/activityservice:$CI_COMMIT_SHORT_SHA" \
+            "fitness/aiservice=$ECR_REGISTRY/$ECR_NAMESPACE/aiservice:$CI_COMMIT_SHORT_SHA"
+        )
+      done
+    - if git diff --quiet; then echo "Image tags already current"; exit 0; fi
+    - git add deploy/k8s/overlays/dev/kustomization.yaml deploy/k8s/overlays/prod/kustomization.yaml
+    - 'git commit -m "chore(gitops): deploy ${CI_COMMIT_SHORT_SHA} [skip ci]"'
+    - git push origin "HEAD:${GITOPS_BRANCH}"

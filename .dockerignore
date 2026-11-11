@@ -1,0 +1,14 @@
+.git
+.gitignore
+.gitattributes
+.idea
+.env
+.run
+certs
+docs
+logs
+**/target
+frontend/node_modules
+frontend/dist
+deploy/k8s
+deploy/argocd

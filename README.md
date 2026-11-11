@@ -107,6 +107,15 @@ included. Measure Lighthouse against `npm run preview` or the deployed build,
 not the Vite dev server. See `frontend/README.md` for performance, deployment,
 API integration, and security notes.
 
+## CI/CD
+
+`.gitlab-ci.yml` runs backend tests, frontend lint/typecheck/build, publishes
+immutable backend images to ECR, and commits updated image tags for Argo CD.
+`deploy/` contains the GitLab CI prerequisites, Kubernetes manifests for the
+services and dependencies, and the Argo CD project/ApplicationSet for EKS.
+The frontend continues to deploy through Cloudflare Pages. See
+`deploy/README.md` for the bootstrap sequence and production caveats.
+
 ## Configuration
 
 Copy `.env.example` to `.env` and replace every placeholder before running.

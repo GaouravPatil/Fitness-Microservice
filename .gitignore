@@ -37,3 +37,8 @@ build/
 ### Local runtime artifacts ###
 .run/
 logs/
+
+### Deployment secrets
+secrets.yaml
+deploy/k8s/base/secrets.yaml
+/dist/
